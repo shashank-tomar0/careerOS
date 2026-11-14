@@ -123,11 +123,15 @@ def validate_json_fields(data: dict, profile: dict, mode: str = "normal") -> dic
     # Collect all text for bulk checks
     all_text_parts: list[str] = [data["summary"]]
 
-    # Skills: check for fabrication (always enforced)
+    # Skills: check for fabrication (always enforced).
+    # Items inside the user's real skills_boundary are legitimate, not fabrications.
+    allowed_skills = _build_skills_set(profile)
     if isinstance(data["skills"], dict):
         skills_text = " ".join(str(v) for v in data["skills"].values()).lower()
         for fake in FABRICATION_WATCHLIST:
             if len(fake) <= 2:
+                continue
+            if fake in allowed_skills:
                 continue
             if fake in skills_text:
                 errors.append(f"Fabricated skill: '{fake}'")
@@ -249,6 +253,8 @@ def validate_tailored_resume(text: str, profile: dict, original_text: str = "") 
         skills_block = text_lower[skills_start:skills_end]
         for fake in FABRICATION_WATCHLIST:
             if len(fake) <= 2:
+                continue
+            if fake in allowed_skills:
                 continue
             if fake in skills_block:
                 errors.append(f"FABRICATED SKILL in Technical Skills: '{fake}'")

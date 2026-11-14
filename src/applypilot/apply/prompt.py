@@ -445,16 +445,35 @@ def build_prompt(job: dict, tailored_resume: str,
         raise ValueError(f"No tailored resume for job: {job.get('title', 'unknown')}")
 
     src_pdf = Path(resume_path).with_suffix(".pdf").resolve()
+    src_file = src_pdf
     if not src_pdf.exists():
-        raise ValueError(f"Resume PDF not found: {src_pdf}")
+        # PDF conversion may not have run yet — try converting the .txt now
+        txt_path = Path(resume_path).resolve()
+        if txt_path.exists():
+            try:
+                from applypilot.scoring.pdf import batch_convert
+                batch_convert(limit=5)
+            except Exception:
+                pass
+        if src_pdf.exists():
+            pass  # conversion succeeded — upload the PDF
+        elif txt_path.exists():
+            # Last resort: upload the plain-text version
+            logger.warning(
+                "Resume PDF still missing; falling back to plain-text resume: %s",
+                txt_path,
+            )
+            src_file = txt_path
+        else:
+            raise ValueError(f"Resume PDF not found: {src_pdf}")
 
     # Copy to a clean filename for upload (recruiters see the filename)
     full_name = personal["full_name"]
     name_slug = full_name.replace(" ", "_")
     dest_dir = config.APPLY_WORKER_DIR / "current"
     dest_dir.mkdir(parents=True, exist_ok=True)
-    upload_pdf = dest_dir / f"{name_slug}_Resume.pdf"
-    shutil.copy(str(src_pdf), str(upload_pdf))
+    upload_pdf = dest_dir / f"{name_slug}_Resume{src_file.suffix}"
+    shutil.copy(str(src_file), str(upload_pdf))
     pdf_path = str(upload_pdf)
 
     # --- Cover letter handling ---
@@ -516,7 +535,7 @@ def build_prompt(job: dict, tailored_resume: str,
     prompt = f"""You are an autonomous job application agent. Your ONE mission: get this candidate an interview. You have all the information and tools. Think strategically. Act decisively. Submit the application.
 
 == JOB ==
-URL: {job.get('application_url') or job['url']}
+URL: {((job.get('application_url') or '').strip() not in ('', 'None', 'nan') and job.get('application_url')) or job['url']}
 Title: {job['title']}
 Company: {job.get('site', 'Unknown')}
 Fit Score: {job.get('fit_score', 'N/A')}/10

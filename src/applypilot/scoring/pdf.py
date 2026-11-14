@@ -340,10 +340,18 @@ def render_pdf(html: str, output_path: str) -> None:
         html: Complete HTML string.
         output_path: Path to write the PDF file.
     """
+
+def _pw_launch_opts() -> dict:
+    """Prefer the user's installed Chrome/Brave (no Playwright download needed)."""
+    try:
+        from applypilot.config import get_chrome_path
+        return {"executable_path": get_chrome_path()}
+    except FileNotFoundError:
+        return {}
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(**_pw_launch_opts())
         page = browser.new_page()
         page.set_content(html, wait_until="networkidle")
         page.pdf(

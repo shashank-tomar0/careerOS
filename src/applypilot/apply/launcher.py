@@ -11,6 +11,7 @@ import logging
 import os
 import platform
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -83,6 +84,41 @@ def _make_mcp_config(cdp_port: int) -> dict:
     }
 
 
+
+def _playwright_mcp_command(cdp_port: int) -> list[str]:
+    """Build a reliable @playwright/mcp launch command on any OS.
+
+    Prefers `npx`, but on Windows npm/npx installs are often broken or
+    shell-resolution fails inside spawned processes, so falls back to
+    invoking the installed cli.js directly with node.
+    """
+    args_tail = [
+        f"--cdp-endpoint=http://localhost:{cdp_port}",
+        f"--viewport-size={config.DEFAULTS['viewport']}",
+    ]
+
+    # Locate a globally installed @playwright/mcp/cli.js
+    candidates = []
+    home = Path.home()
+    for base in (
+        home / "scoop" / "persist" / "nodejs-lts" / "bin",
+        home / "scoop" / "apps" / "nodejs-lts" / "current",
+        home / "scoop" / "apps" / "nodejs" / "current",
+        Path(os.environ.get("APPDATA", "")) / "npm",
+        Path("C:") / "Program Files" / "nodejs",
+        Path("C:") / "Program Files" / "nodejs" / "node_modules" / "npm",
+    ):
+        if base and base.exists():
+            candidates.append(base / "node_modules" / "@playwright" / "mcp" / "cli.js")
+    for cli in candidates:
+        if cli.exists():
+            node = shutil.which("node")
+            if node:
+                return [node, str(cli), *args_tail]
+
+    return ["npx", "@playwright/mcp@latest", *args_tail]
+
+
 def _make_opencode_config(cdp_port: int) -> dict:
     """Build an opencode.json config for a specific CDP port.
 
@@ -95,12 +131,7 @@ def _make_opencode_config(cdp_port: int) -> dict:
         "mcp": {
             "playwright": {
                 "type": "local",
-                "command": [
-                    "npx",
-                    "@playwright/mcp@latest",
-                    f"--cdp-endpoint=http://localhost:{cdp_port}",
-                    f"--viewport-size={config.DEFAULTS['viewport']}",
-                ],
+                "command": _playwright_mcp_command(cdp_port),
                 "enabled": True,
             },
         },
@@ -360,9 +391,12 @@ def run_job(job: dict, port: int, worker_id: int = 0,
         oc_config_path.write_text(
             json.dumps(_make_opencode_config(port)), encoding="utf-8"
         )
-        cmd = [agent_bin, "run", "--auto", "--log-level", "none"]
-        if model and model not in ("haiku", "sonnet", "opus"):
+        cmd = [agent_bin, "run", "--auto", "--standalone", "--log-level", "none"]
+        if model and model not in ("haiku", "sonnet", "opus", ""):
             cmd += ["--model", model]
+        else:
+            # reliable free default (the built-in default model has a tiny daily quota)
+            cmd += ["--model", "google-gemini/gemini-3.1-flash-lite"]
         env.pop("CLAUDECODE", None)
         env.pop("CLAUDE_CODE_ENTRYPOINT", None)
     else:
@@ -401,7 +435,7 @@ def run_job(job: dict, port: int, worker_id: int = 0,
     log_header = (
         f"\n{'=' * 60}\n"
         f"[{ts_header}] {job['title']} @ {job.get('site', '')}\n"
-        f"URL: {job.get('application_url') or job['url']}\n"
+        f"URL: {(job.get('application_url') not in (None, '', 'None', 'nan') and job.get('application_url')) or job['url']}\n"
         f"Score: {job.get('fit_score', 'N/A')}/10\n"
         f"{'=' * 60}\n"
     )
