@@ -469,7 +469,7 @@ def scrape_employers(
 
 # -- Public entry point ------------------------------------------------------
 
-def run_workday_discovery(employers: dict | None = None, workers: int = 1) -> dict:
+def run_workday_discovery(employers: dict | None = None, workers: int = 1, max_employers: int = 0) -> dict:
     """Main entry point for Workday-based corporate job discovery.
 
     Loads employer registry from config/employers.yaml (or uses the provided
@@ -479,12 +479,17 @@ def run_workday_discovery(employers: dict | None = None, workers: int = 1) -> di
     Args:
         employers: Override the employer registry. If None, loads from YAML.
         workers: Number of parallel threads for employer scraping. Default 1 (sequential).
+        max_employers: Cap on how many employers to crawl (0 = all). Useful for demos.
 
     Returns:
         Dict with stats: found, new, existing, queries.
     """
     if employers is None:
         employers = load_employers()
+
+    if max_employers and len(employers) > max_employers:
+        employers = dict(list(employers.items())[:max_employers])
+        log.info("Capped at first %d employers (demo mode)", max_employers)
 
     if not employers:
         log.warning("No employers configured. Create config/employers.yaml.")

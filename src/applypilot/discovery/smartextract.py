@@ -46,6 +46,22 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 
+def _pw_launch_opts(headless: bool = True) -> dict:
+    """Playwright launch options that prefer a system Chromium browser.
+
+    Playwright's bundled browser may be missing (e.g. `playwright install`
+    never ran, or the disk is too full to download it). Fall back to the
+    user's installed Chrome/Brave/Edge — any Chromium build works.
+    """
+    try:
+        from applypilot.config import get_chrome_path
+        return {"headless": headless, "executable_path": get_chrome_path()}
+    except FileNotFoundError:
+        return {"headless": headless}
+
+
+
+
 # -- Location filtering -------------------------------------------------------
 
 def _load_location_filter(search_cfg: dict | None = None):
@@ -162,7 +178,7 @@ def collect_page_intelligence(url: str, headless: bool = True) -> dict:
                 pass
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
+        browser = p.chromium.launch(**_pw_launch_opts(headless=headless))
         page = browser.new_page(user_agent=UA)
         page.on("response", on_response)
 
@@ -1088,6 +1104,7 @@ def _run_all(
 def run_smart_extract(
     sites: list[dict] | None = None,
     workers: int = 1,
+    max_sites: int = 0,
 ) -> dict:
     """Main entry point for AI-powered smart extraction.
 
@@ -1097,6 +1114,7 @@ def run_smart_extract(
     Args:
         sites: Override the site list. If None, loads from YAML.
         workers: Number of parallel threads for site scraping. Default 1 (sequential).
+        max_sites: Cap on how many sites to scrape (0 = all). Useful for demos.
 
     Returns:
         Dict with stats: total_new, total_existing, passed, total.
@@ -1105,6 +1123,9 @@ def run_smart_extract(
     accept_locs, reject_locs = _load_location_filter(search_cfg)
 
     targets = build_scrape_targets(sites=sites, search_cfg=search_cfg)
+    if max_sites and len(targets) > max_sites:
+        targets = targets[:max_sites]
+        log.info("Capped at %d sites (demo mode)", max_sites)
 
     if not targets:
         log.warning("No scrape targets configured. Create config/sites.yaml and searches.yaml.")

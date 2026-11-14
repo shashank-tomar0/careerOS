@@ -34,6 +34,21 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 # Sites that block scraping -- skip detail extraction entirely
 SKIP_DETAIL_SITES = {"glassdoor", "google", "Workopolis"}
 
+def _pw_launch_opts(headless: bool = True) -> dict:
+    """Playwright launch options that prefer a system Chromium browser.
+
+    Playwright's bundled browser may be missing (e.g. `playwright install`
+    never ran, or the disk is too full to download it). Fall back to the
+    user's installed Chrome/Brave/Edge — any Chromium build works.
+    """
+    try:
+        from applypilot.config import get_chrome_path
+        return {"headless": headless, "executable_path": get_chrome_path()}
+    except FileNotFoundError:
+        return {"headless": headless}
+
+
+
 # Module-level proxy config (set from CLI or caller)
 _PROXY_CONFIG: dict | None = None
 
@@ -144,7 +159,7 @@ def resolve_wttj_urls(conn: sqlite3.Connection) -> int:
                 pass
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(**_pw_launch_opts(headless=True))
         page = browser.new_page(user_agent=UA)
         page.on("response", capture_algolia)
         page.goto(
@@ -633,7 +648,7 @@ def scrape_site_batch(
 
     try:
         with sync_playwright() as p:
-            launch_opts: dict = {"headless": True}
+            launch_opts: dict = _pw_launch_opts(headless=True)
             if _PROXY_CONFIG:
                 launch_opts["proxy"] = _PROXY_CONFIG["playwright"]
             browser = p.chromium.launch(**launch_opts)

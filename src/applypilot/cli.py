@@ -98,6 +98,10 @@ def run(
             "lenient: banned words ignored, LLM judge skipped (fastest, fewest API calls)."
         ),
     ),
+    limit: int = typer.Option(
+        0, "--limit", "-l",
+        help="Max jobs processed per stage (great for quick demos: --limit 2). 0 = default.",
+    ),
 ) -> None:
     """Run pipeline stages: discover, enrich, score, tailor, cover, pdf."""
     _bootstrap()
@@ -137,6 +141,7 @@ def run(
         stream=stream,
         workers=workers,
         validation_mode=validation,
+        limit=limit,
     )
 
     if result.get("errors"):

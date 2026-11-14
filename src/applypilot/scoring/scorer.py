@@ -55,17 +55,18 @@ def _parse_score_response(response: str) -> dict:
     reasoning = response
 
     for line in response.split("\n"):
-        line = line.strip()
-        if line.startswith("SCORE:"):
+        # Strip markdown decoration (models love **bold**, headers, bullets)
+        clean = line.strip().lstrip("*#>`-—\u2013 ").rstrip("* ")
+        if clean.startswith("SCORE:"):
             try:
-                score = int(re.search(r"\d+", line).group())
+                score = int(re.search(r"\d+", clean).group())
                 score = max(1, min(10, score))
             except (AttributeError, ValueError):
                 score = 0
-        elif line.startswith("KEYWORDS:"):
-            keywords = line.replace("KEYWORDS:", "").strip()
-        elif line.startswith("REASONING:"):
-            reasoning = line.replace("REASONING:", "").strip()
+        elif clean.startswith("KEYWORDS:"):
+            keywords = clean.replace("KEYWORDS:", "").strip()
+        elif clean.startswith("REASONING:"):
+            reasoning = clean.replace("REASONING:", "").strip()
 
     return {"score": score, "keywords": keywords, "reasoning": reasoning}
 
