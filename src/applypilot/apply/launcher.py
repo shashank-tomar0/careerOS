@@ -83,6 +83,30 @@ def _make_mcp_config(cdp_port: int) -> dict:
     }
 
 
+def _make_opencode_config(cdp_port: int) -> dict:
+    """Build an opencode.json config for a specific CDP port.
+
+    Written into the worker's cwd as opencode.json so opencode merges it with
+    the user's global config (providers/models are preserved).
+    Only the playwright MCP server is included — no email access for the agent.
+    """
+    return {
+        "$schema": "https://opencode.ai/config.json",
+        "mcp": {
+            "playwright": {
+                "type": "local",
+                "command": [
+                    "npx",
+                    "@playwright/mcp@latest",
+                    f"--cdp-endpoint=http://localhost:{cdp_port}",
+                    f"--viewport-size={config.DEFAULTS['viewport']}",
+                ],
+                "enabled": True,
+            },
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # Database operations
 # ---------------------------------------------------------------------------
@@ -296,7 +320,7 @@ def reset_failed() -> int:
 
 def run_job(job: dict, port: int, worker_id: int = 0,
             model: str = "sonnet", dry_run: bool = False) -> tuple[str, int]:
-    """Spawn a Claude Code session for one job application.
+    """Spawn an agent session (opencode or claude) for one job application.
 
     Returns:
         Tuple of (status_string, duration_ms). Status is one of:
@@ -317,37 +341,55 @@ def run_job(job: dict, port: int, worker_id: int = 0,
         dry_run=dry_run,
     )
 
-    # Write per-worker MCP config
-    mcp_config_path = config.APP_DIR / f".mcp-apply-{worker_id}.json"
-    mcp_config_path.write_text(json.dumps(_make_mcp_config(port)), encoding="utf-8")
-
-    # Build claude command
-    cmd = [
-        "claude",
-        "--model", model,
-        "-p",
-        "--mcp-config", str(mcp_config_path),
-        "--permission-mode", "bypassPermissions",
-        "--no-session-persistence",
-        "--disallowedTools", (
-            "mcp__gmail__draft_email,mcp__gmail__modify_email,"
-            "mcp__gmail__delete_email,mcp__gmail__download_attachment,"
-            "mcp__gmail__batch_modify_emails,mcp__gmail__batch_delete_emails,"
-            "mcp__gmail__create_label,mcp__gmail__update_label,"
-            "mcp__gmail__delete_label,mcp__gmail__get_or_create_label,"
-            "mcp__gmail__list_email_labels,mcp__gmail__create_filter,"
-            "mcp__gmail__list_filters,mcp__gmail__get_filter,"
-            "mcp__gmail__delete_filter"
-        ),
-        "--output-format", "stream-json",
-        "--verbose", "-",
-    ]
-
-    env = os.environ.copy()
-    env.pop("CLAUDECODE", None)
-    env.pop("CLAUDE_CODE_ENTRYPOINT", None)
+    # Resolve which agent CLI is being used (opencode preferred, claude fallback)
+    try:
+        agent_bin = config.get_agent_bin()
+    except FileNotFoundError as e:
+        add_event(f"[W{worker_id}] No agent CLI: {str(e)[:60]}")
+        return "failed:no_agent_cli", 0
+    agent = Path(agent_bin).stem.lower()
 
     worker_dir = reset_worker_dir(worker_id)
+
+    # Build agent command + per-worker config
+    env = os.environ.copy()
+    if agent == "opencode":
+        # Per-worker opencode.json placed in the worker's cwd — opencode merges
+        # it with the user's global config, so their providers/models survive.
+        oc_config_path = Path(worker_dir) / "opencode.json"
+        oc_config_path.write_text(
+            json.dumps(_make_opencode_config(port)), encoding="utf-8"
+        )
+        cmd = [agent_bin, "run", "--auto", "--log-level", "none"]
+        if model and model not in ("haiku", "sonnet", "opus"):
+            cmd += ["--model", model]
+        env.pop("CLAUDECODE", None)
+        env.pop("CLAUDE_CODE_ENTRYPOINT", None)
+    else:
+        mcp_config_path = config.APP_DIR / f".mcp-apply-{worker_id}.json"
+        mcp_config_path.write_text(json.dumps(_make_mcp_config(port)), encoding="utf-8")
+        cmd = [
+            agent_bin,
+            "--model", model,
+            "-p",
+            "--mcp-config", str(mcp_config_path),
+            "--permission-mode", "bypassPermissions",
+            "--no-session-persistence",
+            "--disallowedTools", (
+                "mcp__gmail__draft_email,mcp__gmail__modify_email,"
+                "mcp__gmail__delete_email,mcp__gmail__download_attachment,"
+                "mcp__gmail__batch_modify_emails,mcp__gmail__batch_delete_emails,"
+                "mcp__gmail__create_label,mcp__gmail__update_label,"
+                "mcp__gmail__delete_label,mcp__gmail__get_or_create_label,"
+                "mcp__gmail__list_email_labels,mcp__gmail__create_filter,"
+                "mcp__gmail__list_filters,mcp__gmail__get_filter,"
+                "mcp__gmail__delete_filter"
+            ),
+            "--output-format", "stream-json",
+            "--verbose", "-",
+        ]
+        env.pop("CLAUDECODE", None)
+        env.pop("CLAUDE_CODE_ENTRYPOINT", None)
 
     update_state(worker_id, status="applying", job_title=job["title"],
                  company=job.get("site", ""), score=job.get("fit_score", 0),
@@ -390,57 +432,65 @@ def run_job(job: dict, port: int, worker_id: int = 0,
         with open(worker_log, "a", encoding="utf-8") as lf:
             lf.write(log_header)
 
-            for line in proc.stdout:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    msg = json.loads(line)
-                    msg_type = msg.get("type")
-                    if msg_type == "assistant":
-                        for block in msg.get("message", {}).get("content", []):
-                            bt = block.get("type")
-                            if bt == "text":
-                                text_parts.append(block["text"])
-                                lf.write(block["text"] + "\n")
-                            elif bt == "tool_use":
-                                name = (
-                                    block.get("name", "")
-                                    .replace("mcp__playwright__", "")
-                                    .replace("mcp__gmail__", "gmail:")
-                                )
-                                inp = block.get("input", {})
-                                if "url" in inp:
-                                    desc = f"{name} {inp['url'][:60]}"
-                                elif "ref" in inp:
-                                    desc = f"{name} {inp.get('element', inp.get('text', ''))}"[:50]
-                                elif "fields" in inp:
-                                    desc = f"{name} ({len(inp['fields'])} fields)"
-                                elif "paths" in inp:
-                                    desc = f"{name} upload"
-                                else:
-                                    desc = name
-
-                                lf.write(f"  >> {desc}\n")
-                                ws = get_state(worker_id)
-                                cur_actions = ws.actions if ws else 0
-                                update_state(worker_id,
-                                             actions=cur_actions + 1,
-                                             last_action=desc[:35])
-                    elif msg_type == "result":
-                        stats = {
-                            "input_tokens": msg.get("usage", {}).get("input_tokens", 0),
-                            "output_tokens": msg.get("usage", {}).get("output_tokens", 0),
-                            "cache_read": msg.get("usage", {}).get("cache_read_input_tokens", 0),
-                            "cache_create": msg.get("usage", {}).get("cache_creation_input_tokens", 0),
-                            "cost_usd": msg.get("total_cost_usd", 0),
-                            "turns": msg.get("num_turns", 0),
-                        }
-                        text_parts.append(msg.get("result", ""))
-                except json.JSONDecodeError:
+            if agent == "opencode":
+                # OpenCode emits plain text — log everything, no JSON parsing
+                for line in proc.stdout:
+                    line = line.rstrip("\n")
+                    if not line.strip():
+                        continue
                     text_parts.append(line)
                     lf.write(line + "\n")
+            else:
+                for line in proc.stdout:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        msg = json.loads(line)
+                        msg_type = msg.get("type")
+                        if msg_type == "assistant":
+                            for block in msg.get("message", {}).get("content", []):
+                                bt = block.get("type")
+                                if bt == "text":
+                                    text_parts.append(block["text"])
+                                    lf.write(block["text"] + "\n")
+                                elif bt == "tool_use":
+                                    name = (
+                                        block.get("name", "")
+                                        .replace("mcp__playwright__", "")
+                                        .replace("mcp__gmail__", "gmail:")
+                                    )
+                                    inp = block.get("input", {})
+                                    if "url" in inp:
+                                        desc = f"{name} {inp['url'][:60]}"
+                                    elif "ref" in inp:
+                                        desc = f"{name} {inp.get('element', inp.get('text', ''))}"[:50]
+                                    elif "fields" in inp:
+                                        desc = f"{name} ({len(inp['fields'])} fields)"
+                                    elif "paths" in inp:
+                                        desc = f"{name} upload"
+                                    else:
+                                        desc = name
 
+                                    lf.write(f"  >> {desc}\n")
+                                    ws = get_state(worker_id)
+                                    cur_actions = ws.actions if ws else 0
+                                    update_state(worker_id,
+                                                 actions=cur_actions + 1,
+                                                 last_action=desc[:35])
+                        elif msg_type == "result":
+                            stats = {
+                                "input_tokens": msg.get("usage", {}).get("input_tokens", 0),
+                                "output_tokens": msg.get("usage", {}).get("output_tokens", 0),
+                                "cache_read": msg.get("usage", {}).get("cache_read_input_tokens", 0),
+                                "cache_create": msg.get("usage", {}).get("cache_creation_input_tokens", 0),
+                                "cost_usd": msg.get("total_cost_usd", 0),
+                                "turns": msg.get("num_turns", 0),
+                            }
+                            text_parts.append(msg.get("result", ""))
+                    except json.JSONDecodeError:
+                        text_parts.append(line)
+                        lf.write(line + "\n")
         proc.wait(timeout=300)
         returncode = proc.returncode
         proc = None

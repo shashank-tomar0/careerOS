@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -223,11 +224,19 @@ def apply(
         mcp_path = _profile_path.parent / ".mcp-apply-0.json"
         console.print(f"[green]Wrote prompt to:[/green] {prompt_file}")
         console.print(f"\n[bold]Run manually:[/bold]")
-        console.print(
-            f"  claude --model {model} -p "
-            f"--mcp-config {mcp_path} "
-            f"--permission-mode bypassPermissions < {prompt_file}"
-        )
+        from applypilot.config import get_agent_bin
+        try:
+            agent_name = Path(get_agent_bin()).stem.lower()
+        except Exception:
+            agent_name = "claude"
+        if agent_name == "opencode":
+            console.print(f"  opencode run --auto < {prompt_file}")
+        else:
+            console.print(
+                f"  claude --model {model} -p "
+                f"--mcp-config {mcp_path} "
+                f"--permission-mode bypassPermissions < {prompt_file}"
+            )
         return
 
     from applypilot.apply.launcher import main as apply_main
@@ -396,13 +405,15 @@ def doctor() -> None:
                         "Set GEMINI_API_KEY in ~/.applypilot/.env (run 'applypilot init')"))
 
     # --- Tier 3 checks ---
-    # Claude Code CLI
-    claude_bin = shutil.which("claude")
-    if claude_bin:
-        results.append(("Claude Code CLI", ok_mark, claude_bin))
-    else:
-        results.append(("Claude Code CLI", fail_mark,
-                        "Install from https://claude.ai/code (needed for auto-apply)"))
+    # Agent CLI (opencode preferred, claude fallback)
+    from applypilot.config import get_agent_bin
+    try:
+        agent_bin = get_agent_bin()
+        results.append(("Agent CLI (auto-apply)", ok_mark,
+                        f"{Path(agent_bin).stem} - {agent_bin}"))
+    except FileNotFoundError:
+        results.append(("Agent CLI (auto-apply)", fail_mark,
+                        "Install opencode (free, https://opencode.ai) or Claude Code (needed for auto-apply)"))
 
     # Chrome
     try:

@@ -74,6 +74,52 @@ def get_chrome_path() -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# Auto-apply agent (opencode or claude) — selection and detection
+# ---------------------------------------------------------------------------
+
+def get_agent_bin() -> str:
+    """Resolve the auto-apply agent CLI executable.
+
+    Selection order:
+      1. AGENT_BIN env var (explicit path to opencode/claude binary)
+      2. APPLYPILOT_AGENT env var ('opencode' or 'claude') — resolved via PATH
+      3. Auto-detect: prefer opencode, fall back to claude
+      4. Known opencode desktop install location (~/.opencode/bin)
+    """
+    explicit = os.environ.get("AGENT_BIN")
+    if explicit and Path(explicit).exists():
+        return explicit
+
+    preferred = os.environ.get("APPLYPILOT_AGENT", "").lower()
+    candidates = ([preferred] if preferred in ("opencode", "claude") else []) \
+        + ["opencode", "claude"]
+    for name in candidates:
+        found = shutil.which(name)
+        if found:
+            return found
+
+    # OpenCode desktop app ships its CLI outside PATH
+    exe = "opencode.exe" if platform.system() == "Windows" else "opencode"
+    known = Path.home() / ".opencode" / "bin" / exe
+    if known.exists():
+        return str(known)
+
+    raise FileNotFoundError(
+        "No auto-apply agent CLI found. "
+        "Install opencode (https://opencode.ai) or Claude Code, "
+        "or set AGENT_BIN to the executable path."
+    )
+
+
+def get_agent_name() -> str:
+    """Return 'opencode' or 'claude' based on the resolved agent binary."""
+    try:
+        return Path(get_agent_bin()).stem.lower()
+    except FileNotFoundError:
+        return "none"
+
+
 def get_chrome_user_data() -> Path:
     """Default Chrome user data directory, cross-platform."""
     system = platform.system()
@@ -210,14 +256,17 @@ def get_tier() -> int:
     if not has_llm:
         return 1
 
-    has_claude = shutil.which("claude") is not None
+    try:
+        has_agent = get_agent_bin() is not None
+    except FileNotFoundError:
+        has_agent = False
     try:
         get_chrome_path()
         has_chrome = True
     except FileNotFoundError:
         has_chrome = False
 
-    if has_claude and has_chrome:
+    if has_agent and has_chrome:
         return 3
 
     return 2
@@ -241,8 +290,10 @@ def check_tier(required: int, feature: str) -> None:
     if required >= 2 and not any(os.environ.get(k) for k in ("GEMINI_API_KEY", "OPENAI_API_KEY", "LLM_URL")):
         missing.append("LLM API key — run [bold]applypilot init[/bold] or set GEMINI_API_KEY")
     if required >= 3:
-        if not shutil.which("claude"):
-            missing.append("Claude Code CLI — install from [bold]https://claude.ai/code[/bold]")
+        try:
+            get_agent_bin()
+        except FileNotFoundError:
+            missing.append("Agent CLI — install opencode (free, https://opencode.ai) or Claude Code, or set AGENT_BIN")
         try:
             get_chrome_path()
         except FileNotFoundError:
