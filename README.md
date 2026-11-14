@@ -4,7 +4,9 @@
 
 # ApplyPilot
 
-**Applied to 1,000 jobs in 2 days. Fully autonomous. Open source.**
+**careerOS — Applied to 1,000 jobs in 2 days. Fully autonomous. Open source.**
+
+> This build is maintained as **careerOS** by [shashank-tomar0](https://github.com/shashank-tomar0). Based on [ApplyPilot](https://github.com/Pickle-Pixel/ApplyPilot) by [Pickle-Pixel](https://github.com/Pickle-Pixel), the original creator. Licensed under [AGPL-3.0](LICENSE) — all credit for the original project goes to Pickle-Pixel.
 
 [![PyPI version](https://img.shields.io/pypi/v/applypilot?color=blue)](https://pypi.org/project/applypilot/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
