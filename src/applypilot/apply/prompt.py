@@ -102,20 +102,20 @@ def _build_location_check(profile: dict, search_config: dict) -> str:
     location_cfg = search_config.get("location", {})
     accept_patterns = location_cfg.get("accept_patterns", [])
     primary_city = personal.get("city", location_cfg.get("primary", "your city"))
+    candidate_country = (personal.get("country") or "").strip() or "the candidate's country"
 
     # Build the list of acceptable cities for hybrid/onsite
     if accept_patterns:
         city_list = ", ".join(accept_patterns)
     else:
-        city_list = primary_city
+        city_list = f"{primary_city}, or any other city in {candidate_country}"
 
     return f"""== LOCATION CHECK (do this FIRST before any form) ==
-Read the job page. Determine the work arrangement. Then decide:
+The candidate is based in {primary_city}, {candidate_country}. Read the job page. Determine the work arrangement. Then decide:
 - "Remote" or "work from anywhere" -> ELIGIBLE. Apply.
-- "Hybrid" or "onsite" in {city_list} -> ELIGIBLE. Apply.
+- "Hybrid" or "onsite" in {city_list} -> ELIGIBLE. Apply (same-country onsite is fine unless accept_patterns explicitly exclude that city).
 - "Hybrid" or "onsite" in another city BUT the posting also says "remote OK" or "remote option available" -> ELIGIBLE. Apply.
-- "Onsite only" or "hybrid only" in any city outside the list above with NO remote option -> NOT ELIGIBLE. Stop immediately. Output RESULT:FAILED:not_eligible_location
-- City is overseas (India, Philippines, Europe, etc.) with no remote option -> NOT ELIGIBLE. Output RESULT:FAILED:not_eligible_location
+- "Onsite only" or "hybrid only" in a DIFFERENT COUNTRY than {candidate_country}, with NO remote option -> NOT ELIGIBLE. Stop immediately. Output RESULT:FAILED:not_eligible_location
 - Cannot determine location -> Continue applying. If a screening question reveals it's non-local onsite, answer honestly and let the system reject if needed.
 Do NOT fill out forms for jobs that are clearly onsite in a non-acceptable location. Check EARLY, save time."""
 
@@ -151,15 +151,15 @@ def _build_salary_section(profile: dict) -> str:
         convert_line = "Posting is in a different currency? -> Target midpoint of their range. Convert if needed."
 
     return f"""== SALARY (think, don't just copy) ==
-${floor} {currency} is the FLOOR. Never go below it. But don't always use it either.
+{floor} {currency} per year is the FLOOR. Never go below it. But don't always use it either.
 
 Decision tree:
-1. Job posting shows a range (e.g. "$120K-$160K")? -> Answer with the MIDPOINT ($140K).
-2. Title says Senior, Staff, Lead, Principal, Architect, or level II/III/IV? -> Minimum $110K {currency}. Use midpoint of posted range if higher.
+1. Job posting shows a range? -> Answer with the MIDPOINT of their range.
+2. Title says Senior, Staff, Lead, Principal, Architect, or level II/III/IV? -> At least the floor; use the midpoint of the posted range if higher.
 3. {convert_line}
-4. No salary info anywhere? -> Use ${floor} {currency}.
-5. Asked for a range? -> Give posted midpoint minus 10% to midpoint plus 10%. No posted range? -> "${range_min}-${range_max} {currency}".
-6. Hourly rate? -> Divide your annual answer by 2080. ({hourly_line})"""
+4. No salary info anywhere? -> Use {floor} {currency}.
+5. Asked for a range? -> Give posted midpoint minus 10% to midpoint plus 10%. No posted range? -> "{range_min}-{range_max} {currency}".
+6. State the currency ({currency}) explicitly in every salary answer."""
 
 
 def _build_screening_section(profile: dict) -> str:
@@ -532,7 +532,12 @@ def build_prompt(job: dict, tailored_resume: str,
     else:
         submit_instruction = "BEFORE clicking Submit/Apply, take a snapshot and review EVERY field on the page. Verify all data matches the APPLICANT PROFILE and TAILORED RESUME -- name, email, phone, location, work auth, resume uploaded, cover letter if applicable. If anything is wrong or missing, fix it FIRST. Only click Submit after confirming everything is correct."
 
-    prompt = f"""You are an autonomous job application agent. Your ONE mission: get this candidate an interview. You have all the information and tools. Think strategically. Act decisively. Submit the application.
+    mission_line = (
+        "Complete and verify the application form, but do NOT click the final Submit button."
+        if dry_run
+        else "Submit the application."
+    )
+    prompt = f"""You are an autonomous job application agent. Your ONE mission: get this candidate an interview. You have all the information and tools. Think strategically. Act decisively. {mission_line}
 
 == JOB ==
 URL: {((job.get('application_url') or '').strip() not in ('', 'None', 'nan') and job.get('application_url')) or job['url']}
@@ -556,7 +561,7 @@ Cover Letter PDF (upload if asked): {cl_upload_path or "N/A"}
 == YOUR MISSION ==
 Submit a complete, accurate application. Use the profile and resume as source data -- adapt to fit each form's format.
 
-If something unexpected happens and these instructions don't cover it, figure it out yourself. You are autonomous. Navigate pages, read content, try buttons, explore the site. The goal is always the same: submit the application. Do whatever it takes to reach that goal.
+If something unexpected happens and these instructions don't cover it, figure it out yourself. You are autonomous. Navigate pages, read content, try buttons, explore the site. The goal is always the same: {mission_line} Do whatever it takes to reach that goal -- without ever misrepresenting the candidate.
 
 {hard_rules}
 

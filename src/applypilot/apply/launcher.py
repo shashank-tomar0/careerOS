@@ -135,6 +135,10 @@ def _make_opencode_config(cdp_port: int) -> dict:
                 "enabled": True,
             },
         },
+        # Disable OpenCode's built-in desktop browser tool — it is disconnected
+        # in headless CLI sessions and models mistakenly prefer it over the
+        # working playwright MCP attached to our own Chrome via CDP.
+        "tools": {"browser": False},
     }
 
 
