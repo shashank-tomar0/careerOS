@@ -30,8 +30,8 @@ def _ieee_par(text, size, bold=False, italic=False, align=None, space_after=4, l
 
 _ieee_par("ApplyPilot: An Honesty-Enforcing LLM-Agent Pipeline for End-to-End Job Application Automation on Free-Tier Resources", 24, bold=True, align=C, space_after=10)
 _ieee_par("Shashank Tomar", 11, bold=True, align=C, space_after=2)
-_ieee_par("Department of Computer Science & Engineering", 10, italic=True, align=C, space_after=0)
-_ieee_par("ABES Engineering College, Ghaziabad, UP, India", 10, italic=True, align=C, space_after=0)
+_ieee_par("Independent Researcher", 10, italic=True, align=C, space_after=0)
+_ieee_par("Ghaziabad, Uttar Pradesh, India", 10, italic=True, align=C, space_after=0)
 _ieee_par("Email: [author email] ; ORCID: [0000-0000-0000-0000]", 10, italic=True, align=C, space_after=8)
 
 # Abstract (bold, 9pt, IEEE style) - trimmed to ~200 words

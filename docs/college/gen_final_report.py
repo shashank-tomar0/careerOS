@@ -113,11 +113,13 @@ for t_ in ["ABSTRACT", "LIST OF FIGURES", "LIST OF TABLES", "ABBREVIATIONS",
     p(t_, 12, align=L, space_after=2)
 pagebreak()
 heading("LIST OF FIGURES", 14)
-for f_, d_ in [("Fig. 1", "ApplyPilot architecture"),
-               ("Fig. 2", "Top discovery sources (731 postings)"),
-               ("Fig. 3", "Apply-agent workflow"),
-               ("Fig. 4", "Fit-score distribution of 48 scored jobs"),
-               ("Fig. 5", "Measured pipeline funnel (log scale)")]:
+for f_, d_ in [("Fig. 1", "ApplyPilot architecture: batch stages, checkpoint store, honesty validator, apply agent"),
+               ("Fig. 2", "Top discovery sources in the measured run (731 postings)"),
+               ("Fig. 3", "The honesty validator loop (generator-critic with persisted verdicts)"),
+               ("Fig. 4", "Apply-agent workflow: eligibility gate, truthful entry, mode-dependent termination"),
+               ("Fig. 5", "Fit-score distribution of the 48 scored jobs"),
+               ("Fig. 6", "Measured pipeline funnel (log scale)"),
+               ("Fig. 7", "Measured stage timings of the live run (log scale)")]:
     p(f"{f_}\t{d_}", 12, align=L, space_after=3)
 heading("LIST OF TABLES", 14)
 for t_, d_ in [("Table I", "Apply-stage outcomes (measured)"),
@@ -245,6 +247,7 @@ for i, row in enumerate(rows3):
 h2("B. Generator-Critic Loop")
 pbf("Design. The validator holds a watch-list of fabrication-prone patterns derived from the candidate's verified resume facts. For each LLM-generated document it (a) extracts claims, (b) compares named entities and metrics against profile.json, (c) permits re-organisation and de-emphasis of true content but rejects addition of anything unevidenced, and (d) enforces a skills boundary with normalisation guards to prevent false positives on legitimately listed skills. Rejected documents return to the LLM with structured objections (which sentence, which claim, why), with up to five revision attempts before the job is flagged for human review. This turns fabrication from an invisible statistical risk into a visible, logged rejection event, and yields natural metrics \u2014 validator acceptance rate and an objection taxonomy \u2014 which we intend to evaluate adversarially in future work.")
 
+figure(DIR+"fig6_validator.png", 2.6, "Fig. 3. The honesty validator loop: deterministic claim resolution against verified facts; rejection returns structured objections to the generator (max 5 attempts), acceptance persists a report artefact.")
 h2("C. Validator Algorithm")
 pbf("The validation procedure is deliberately deterministic so that identical documents always receive identical verdicts. The steps are: (1) normalise the document text (case, whitespace, entity aliases); (2) segment into claims — sentences containing a named entity, a number, or a skill term; (3) for each claim, resolve entities against the profile's verified sets (employers, projects, education, metrics, skills); (4) classify each unresolved entity as: paraphrase (allowed), omission-context (allowed), or invention (rejected); (5) enforce the skills boundary: any skill term not in the profile's skills set and not a generic term is rejected, with normalisation guards for legitimately listed skills; (6) if any claim is rejected, compose a structured objection (sentence index, entity, reason class) and return the document to the generator; (7) accept only when zero claims are rejected, writing the validator report alongside the document. Deterministic rejection makes the audit trail meaningful: a human can inspect exactly which sentence violated which rule, and the objection taxonomy becomes a measurable property of the system.")
 pbf("Observed behaviour. During the deployment the validator rejected early tailored drafts containing a hallucinated CGPA value and an invented project reference, and initially produced a false positive on the candidate's listed skill C++ (flagged as generic-text pattern); the skills-boundary normalisation guard corrected this, after which all nine tailored resumes and five cover letters passed. The false positive and its fix are recorded in the fork's commit history — an example of the audit-first engineering approach this project takes.")
@@ -263,8 +266,8 @@ bl("\u201cThe candidate is based in {primary_city}, {candidate_country}. Remote 
 bl("\u201cDo NOT click the final Submit button (dry-run). Complete and verify the application form; the candidate makes the submission decision.\u201d")
 bl("\u201cYour browser tools are the MCP playwright tools (tools.playwright.*), already connected to a real Chrome with remote debugging. Never conclude that no browser is available without calling them first.\u201d")
 h2("C. Structured Verdict Protocol")
-pbf("Every run terminates with a machine-readable verdict (RESULT:APPLIED | RESULT:FAILED:<reason>) recorded in apply_attempts, producing a complete audit trail per application. In dry-run mode the agent stops at the Review page and saves the draft; in submit mode it clicks Submit and verifies. Fig. 3 shows the workflow.")
-figure(DIR+"fig5_agent.png", 3.1, "Fig. 3. Apply-agent workflow: eligibility gate before any form work, truthful field entry, and mode-dependent termination (submit vs. dry-run) with structured verdicts.")
+pbf("Every run terminates with a machine-readable verdict (RESULT:APPLIED | RESULT:FAILED:<reason>) recorded in apply_attempts, producing a complete audit trail per application. In dry-run mode the agent stops at the Review page and saves the draft; in submit mode it clicks Submit and verifies. Fig. 4 shows the workflow.")
+figure(DIR+"fig5_agent.png", 3.1, "Fig. 4. Apply-agent workflow: eligibility gate before any form work, truthful field entry, and mode-dependent termination (submit vs. dry-run) with structured verdicts.")
 
 h2("D. Verdict Taxonomy")
 pbf("The protocol distinguishes success, eligibility refusal, and system failure: APPLIED (real submit verified), APPLIED dry-run (draft saved at Review), FAILED:not_eligible_location (agent refused after verification), FAILED:sso_required or indeed_login_wall (employer login wall; agent stops safely), FAILED:browser_unavailable (no browser attached; retried next run), FAILED:no_result_line (agent terminated without a verdict; retried). Because every outcome is persisted with its reason and worker transcript, the apply stage can be replayed and audited — an operational property that generic auto-apply bots do not offer.")
@@ -298,8 +301,8 @@ rows6 = [("Source", "Postings", "Share"),
 for i, row in enumerate(rows6):
     for j, v in enumerate(row): set_cell(t6.cell(i, j), v, bold=(i == 0), size=8, align=(C if j else None))
 h2("C. Scoring Results")
-pbf("48 jobs were scored under the free-tier configuration. The distribution (Fig. 4) is discriminating: a weak band at 1\u20133 (21 jobs), a marginal band at 4\u20136 (16), and a fit tail at 7\u20139 (11). 18.8% of scored jobs reached \u22657, a plausible precision-oriented threshold for expensive downstream stages. The three 9/10 postings were Cisco Software Engineer (Bangalore) roles with direct Workday application URLs \u2014 exactly the profile the apply agent handles best.")
-figure(DIR+"fig2_scores.png", 2.9, "Fig. 4. Real fit-score distribution of the 48 scored jobs (author's live run). Red/amber/green encode weak/marginal/strong fit.")
+pbf("48 jobs were scored under the free-tier configuration. The distribution (Fig. 5) is discriminating: a weak band at 1\u20133 (21 jobs), a marginal band at 4\u20136 (16), and a fit tail at 7\u20139 (11). 18.8% of scored jobs reached \u22657, a plausible precision-oriented threshold for expensive downstream stages. The three 9/10 postings were Cisco Software Engineer (Bangalore) roles with direct Workday application URLs \u2014 exactly the profile the apply agent handles best.")
+figure(DIR+"fig2_scores.png", 2.9, "Fig. 5. Real fit-score distribution of the 48 scored jobs (author's live run). Red/amber/green encode weak/marginal/strong fit.")
 h2("D. Document Generation")
 pbf("Nine tailored resumes and five cover letters were produced and converted to PDF, all passing the honesty validator after the generator-critic loop. Observed objection classes matched the threat model: unevidenced project mentions (a hallucinated CGPA and an invented project were caught and removed in early iterations) and out-of-bound skill claims.")
 h2("E. Apply Outcomes")
@@ -314,7 +317,7 @@ rowsd = [("Outcome", "Jobs", "Verdict observed"),
          ("Real submissions", "0", "held for human decision by design")]
 for i, row in enumerate(rowsd):
     for j, v in enumerate(row): set_cell(tt.cell(i, j), v, bold=(i == 0), align=(C if j == 1 else None))
-figure(DIR+"fig3_funnel.png", 2.9, "Fig. 5. Pipeline funnel of the measured run (log scale): discovery feeds a precision-filtered document-generation and application path, with two eligibility refusals recorded.")
+figure(DIR+"fig3_funnel.png", 2.9, "Fig. 6. Pipeline funnel of the measured run (log scale): discovery feeds a precision-filtered document-generation and application path, with two eligibility refusals recorded.")
 h2("F. Failure Modes and Mitigations")
 pbf("Free-tier operation surfaced three reproducible failure classes, all mitigated. (1) Quota exhaustion and 15-requests/minute rate limits on Gemini Flash, addressed by model fallback and stage-level retries with backoff. (2) Agent-browser desynchronisation, in which fast models queried for browser tools before the MCP server finished connecting \u2014 mitigated by model selection (a slower, tool-reliable default) and explicit tool-catalog hints in the prompt. (3) Verbose model output corrupting parsers, mitigated by defensive extraction. These constraints, not model intelligence, were the binding engineering limits of free-tier agentic deployment. Table IV consolidates the stage outputs.")
 caption("TABLE IV. MEASURED STAGE OUTPUTS")
@@ -343,6 +346,7 @@ for i, row in enumerate(rows2):
 
 h2("H. Timings and Observability")
 pbf("Measured stage timings under free-tier conditions: a 24-job scoring batch completed in approximately 78 seconds (limited by the API rate cap, not model latency); a full 48-job scoring pass ran in the low minutes; tailoring with validator rounds averaged under a minute per document; the culminating dry-run application ran about 18 minutes end-to-end, dominated by form navigation and two raw-CDP fallbacks, not model latency. Observability is a design goal: every stage appends to per-run logs, the database records per-stage row counts, and the dashboard exposes progress without SQL. This made the debugging sequence of Section V tractable — every fix was found by reading an audit trail, not by guesswork.")
+figure(DIR+"fig7_timings.png", 2.6, "Fig. 7. Measured stage timings of the live run (log scale): batch stages are quota-bound and fast; the interactive dry-run application is navigation-bound.")
 h2("I. Threats to Validity")
 pbf("Internal validity: all LLM outputs (scores, documents, agent actions) pass through deterministic parsing or code-based validation, so the reported numbers are not re-reads of model prose; however, LLM scoring itself has no ground truth beyond the rubric — a human-rater agreement study is future work. External validity: the deployment is a single candidate profile in one market (India, entry-level, remote-preferring); transferability to other profiles is plausible but unmeasured. Construct validity: “dry-run completion” measures form-completion capability, not application success; response-rate measurement is future work. Reliability: free-tier quotas introduce run-to-run variance in stage latency, though checkpointing makes outputs deterministic once a stage completes.")
 
