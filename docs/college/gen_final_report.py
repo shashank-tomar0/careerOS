@@ -462,6 +462,18 @@ p("Cover-letter excerpt (validator-approved):", 12, align=L)
 p("\u201cI build and ship backend systems in Python \u2014 my projects have served 500+ daily users with 99.9% uptime, and my internship work cut API latency by 45%. For Cisco's Software Engineer (Bangalore) role, that combination of scale-minded engineering and full-stack delivery is directly relevant.\u201d", 12, italic=True, align=J)
 p("Validator report fields recorded per document: verdict, objection list (sentence index, entity, reason class), revision attempt count, final acceptance timestamp \u2014 each stored alongside the document in the SQLite store.", 12, align=J)
 pagebreak()
+chapter("ANNEXURE G \u2014 CULMINATING RUN NARRATIVE (THE DRY-RUN, AS OBSERVED)", 14)
+p("The following is a condensed, factual narrative of the culminating demonstration run, reconstructed from the worker log and system events.", 12, align=J)
+for t_ in [
+  "The pipeline selected the 9/10-fit Cisco Software Engineer (Bangalore) posting and assembled the worker environment: fresh working directory, persistent browser profile, agent configuration with the playwright MCP server bound to the pipeline-launched browser debug port, the policy prompt, profile facts, and the validator-approved tailored resume PDF.",
+  "The agent began with the mandated eligibility check: it read the posting page and the employer career API, confirmed the role is onsite in Bangalore for an India-based candidate \u2014 eligible under the configured India+remote rules \u2014 and proceeded.",
+  "It opened the Workday application, created the candidate account, and began form entry: personal details from profile.json (name, address in Ghaziabad UP, contact), education (B.Tech CSE, CGPA 8.3), employment history (Technoledge India internship), and skills \u2014 all sourced exclusively from the verified profile.",
+  "Two custom widgets exceeded the MCP tool vocabulary; the agent composed raw-CDP helper scripts (form-state.js, a listbox handler) against the debug port \u2014 an improvisation the harness tolerates within the pinned browser actuator.",
+  "It uploaded the tailored resume PDF; the platform confirmed \u201cSuccessfully Uploaded!\u201d. Screening questions were answered truthfully (relocation: None reported as None).",
+  "The agent reached the Review page, recognised the dry-run boundary, saved the draft, and terminated with the structured verdict: RESULT:APPLIED (dry-run \u2014 application fully filled and saved as a draft through the Review step; final Submit intentionally not clicked per instructions).",
+  "Audit trail: worker log (full transcript), database apply_attempts row, and the draft application left in the candidate's Workday account \u2014 one click from submission, deliberately left to the human."]:
+    p("\u2022 " + t_, 12, align=J, space_after=4)
+pagebreak()
 chapter("ANNEXURE C \u2014 GLOSSARY", 14)
 for k, v in [("Workday", "Enterprise HR platform whose career portal is used by most Fortune-500 employers for applications."),
              ("Easy Apply", "LinkedIn's one-click application flow."),

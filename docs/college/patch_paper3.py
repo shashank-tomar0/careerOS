@@ -42,7 +42,6 @@ if "6.7 Timings and Observability" not in s:
 old = 'pagebreak()\nchapter("ANNEXURE C \u2014 GLOSSARY", 14)'
 if "ANNEXURE G" in s and old in s and "CULMINATING RUN NARRATIVE" not in s.split("ANNEXURE C")[0]:
     pass
-if old in s and s.count("ANNEXURE G") >= 1 and "chapter(\"ANNEXURE G" not in s:
     g = '''pagebreak()
 chapter("ANNEXURE G \u2014 CULMINATING RUN NARRATIVE (THE DRY-RUN, AS OBSERVED)", 14)
 p("The following is a condensed, factual narrative of the culminating demonstration run, reconstructed from the worker log and system events.", 12, align=J)
