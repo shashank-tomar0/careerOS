@@ -399,8 +399,26 @@ def run_job(job: dict, port: int, worker_id: int = 0,
         if model and model not in ("haiku", "sonnet", "opus", ""):
             cmd += ["--model", model]
         else:
-            # reliable free default (the built-in default model has a tiny daily quota)
-            cmd += ["--model", "google-gemini/gemini-3.1-flash-lite"]
+            # Reliable free default: slower model that waits for the MCP server
+            # to finish connecting before its first tool query (fast models
+            # race ahead and conclude "no browser available").
+            cmd += ["--model", "opencode/glm-5.3-flash-free"]
+
+        # Point the agent at the real browser tools (MCP playwright over CDP).
+        # The built-in tools.browser namespace is disabled in this session's
+        # opencode.json — without this hint models go hunting for it.
+        agent_prompt += (
+            "\n\n== BROWSER TOOLS (IMPORTANT) ==\n"
+            "Your browser tools are the MCP playwright tools, named "
+            "tools.playwright.browser_* (browser_navigate, browser_snapshot, "
+            "browser_click, browser_fill_form, browser_upload, ...). They are "
+            "already connected to a real Chrome running with remote debugging "
+            "on this machine — just call them. The built-in tools.browser.* "
+            "namespace is DISABLED in this session; if a tool seems missing, "
+            "use the tool search (query: 'playwright') and retry — the server "
+            "may take a few seconds to finish connecting. Never conclude that "
+            "no browser is available without calling tools.playwright.* first."
+        )
         env.pop("CLAUDECODE", None)
         env.pop("CLAUDE_CODE_ENTRYPOINT", None)
     else:
