@@ -12,7 +12,7 @@ plt.rcParams.update({"font.family": "serif", "font.size": 9, "axes.grid": True, 
 DB = sqlite3.connect(r"C:/Users/dell/.applypilot/applypilot.db")
 
 # ---------- Fig 1: pipeline architecture ----------
-fig, ax = plt.subplots(figsize=(7.0, 3.4), dpi=200)
+fig, ax = plt.subplots(figsize=(7.0, 3.4), dpi=300)
 ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(0, 4.4)
 stages = [("Discover\n731 jobs", 0.4), ("Enrich\nfull text", 1.9), ("Score\n1-10 fit", 3.4),
           ("Tailor\nhonest resume", 4.9), ("Cover\nletter", 6.4), ("PDF\nconvert", 7.9)]
@@ -39,7 +39,7 @@ plt.tight_layout(); plt.savefig(OUT+"fig1_pipeline.png", bbox_inches="tight"); p
 
 # ---------- Fig 2: real score distribution ----------
 scores = [r[0] for r in DB.execute("select fit_score from jobs where fit_score is not null").fetchall()]
-fig, ax = plt.subplots(figsize=(3.4, 2.3), dpi=200)
+fig, ax = plt.subplots(figsize=(3.4, 2.3), dpi=300)
 import collections
 cnt = collections.Counter(scores)
 xs = list(range(0, 11)); ys = [cnt.get(x, 0) for x in xs]
@@ -53,7 +53,7 @@ ax.set_xticks(range(0, 11)); ax.set_ylim(0, max(ys)+1.2)
 plt.tight_layout(); plt.savefig(OUT+"fig2_scores.png", bbox_inches="tight"); plt.close()
 
 # ---------- Fig 3: funnel ----------
-fig, ax = plt.subplots(figsize=(3.4, 2.3), dpi=200)
+fig, ax = plt.subplots(figsize=(3.4, 2.3), dpi=300)
 stages_f = ["Discovered", "Scored", "Tailored\n(resumes)", "Cover\nletters", "Dry-run\napplied"]
 vals_f = [731, 48, 9, 5, 1]
 bars = ax.bar(range(5), vals_f, color=["#1e40af", "#3b82f6", "#10b981", "#34d399", "#f59e0b"], edgecolor="#1e293b", lw=0.5)
@@ -67,7 +67,7 @@ plt.tight_layout(); plt.savefig(OUT+"fig3_funnel.png", bbox_inches="tight"); plt
 
 # ---------- Fig 4: sources ----------
 rows = DB.execute("select site, count(*) from jobs group by site order by 2 desc limit 10").fetchall()
-fig, ax = plt.subplots(figsize=(3.4, 2.3), dpi=200)
+fig, ax = plt.subplots(figsize=(3.4, 2.3), dpi=300)
 names = [r[0][:18] for r in rows][::-1]; counts = [r[1] for r in rows][::-1]
 ax.barh(range(len(rows)), counts, color="#6366f1", edgecolor="#1e293b", lw=0.4)
 ax.set_yticks(range(len(rows))); ax.set_yticklabels(names, fontsize=7.5)
@@ -78,7 +78,7 @@ ax.set_xlim(0, max(counts)*1.18)
 plt.tight_layout(); plt.savefig(OUT+"fig4_sources.png", bbox_inches="tight"); plt.close()
 
 # ---------- Fig 5: agent flow ----------
-fig, ax = plt.subplots(figsize=(7.0, 2.9), dpi=200)
+fig, ax = plt.subplots(figsize=(7.0, 2.9), dpi=300)
 ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(0, 3.2)
 flow = [("Eligibility\ncheck", 0.3, "#fef3c7", "#a16207"), ("Open form\n+ account", 1.9, "#dbeafe", "#1e40af"),
         ("Fill fields\n(true facts)", 3.5, "#dbeafe", "#1e40af"), ("Upload\ntailored PDF", 5.1, "#dbeafe", "#1e40af"),
