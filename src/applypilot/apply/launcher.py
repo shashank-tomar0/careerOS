@@ -399,10 +399,13 @@ def run_job(job: dict, port: int, worker_id: int = 0,
         if model and model not in ("haiku", "sonnet", "opus", ""):
             cmd += ["--model", model]
         else:
-            # Reliable free default: slower model that waits for the MCP server
-            # to finish connecting before its first tool query (fast models
-            # race ahead and conclude "no browser available").
-            cmd += ["--model", "opencode/glm-5.3-flash-free"]
+            # Reliable default: the user's own Gemini key (google-gemini
+            # provider in opencode.json). OpenCode-hosted free models
+            # (glm/deepseek/big-pickle) run out of daily quota quickly;
+            # this one is quota-owned by the user. The browser-tools hint
+            # below plus the disabled built-in browser mitigate the fast
+            # model's tool-catalog race.
+            cmd += ["--model", "google-gemini/gemini-3.1-flash-lite"]
 
         # Point the agent at the real browser tools (MCP playwright over CDP).
         # The built-in tools.browser namespace is disabled in this session's
